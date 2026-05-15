@@ -48,32 +48,31 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
 #handle messages that mention the bot's name
-text = update.message.text.lower()
 
-if any(name in text for name in ["chaigpt", "chai gpt", "chai-gpt"]):
+async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    prompt = f"""
-    Respond playfully to this message:
+    text = update.message.text.lower()
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type
 
-    {text}
-    """
+    # Ignore private chats for now
+    if chat_type == "private":
+        return
 
-    reply = await ask_gemini(prompt)
+    # Trigger detection
+    is_triggered = any(
+        trigger in text
+        for trigger in TRIGGERS
+    )
 
-    await update.message.reply_text(reply)
+    if not is_triggered:
+        return
 
-is_triggered = any(
-    trigger in text
-    for trigger in TRIGGERS
-)
-
-if is_triggered:
- 
- chat_id = update.effective_chat.id
-
+    # Cooldown check
     if not can_reply(chat_id):
         return
 
+    # AI prompt
     prompt = f"""
     Respond naturally to this Telegram group message.
 
@@ -90,8 +89,6 @@ if is_triggered:
     reply = await ask_gemini(prompt)
 
     await update.message.reply_text(reply)
-
-    return
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -166,6 +163,12 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Handle user messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    
+    chat_type = update.effective_chat.type
+
+    if chat_type != "private":
+        return
+
     user_name = update.message.text
 
     prompt = f"""
@@ -242,6 +245,13 @@ app.add_handler(CommandHandler("studytip", studytip))
 app.add_handler(CommandHandler("fortune", fortune))
 app.add_handler(CommandHandler("marathi", marathi))
 app.add_handler(CommandHandler("meme", meme))
+
+app.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        chai_group_chat
+    )
+)
 
 app.add_handler(
     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
