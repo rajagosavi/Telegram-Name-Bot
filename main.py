@@ -11,7 +11,33 @@ from telegram.ext import (
 )
 
 import random
+import time
 
+TRIGGERS = [
+    "chaigpt",
+    "chai gpt",
+    "chai-gpt"
+]
+
+last_reply_time = {}
+
+COOLDOWN_SECONDS = 300
+
+def can_reply(chat_id):
+
+    now = time.time()
+
+    if chat_id not in last_reply_time:
+        last_reply_time[chat_id] = 0
+
+    if now - last_reply_time[chat_id] > COOLDOWN_SECONDS:
+
+        last_reply_time[chat_id] = now
+
+        return True
+
+    return False
+    
 # Load environment variables
 load_dotenv()
 
@@ -20,6 +46,52 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 client = genai.Client(api_key=GOOGLE_API_KEY)
+
+#handle messages that mention the bot's name
+text = update.message.text.lower()
+
+if any(name in text for name in ["chaigpt", "chai gpt", "chai-gpt"]):
+
+    prompt = f"""
+    Respond playfully to this message:
+
+    {text}
+    """
+
+    reply = await ask_gemini(prompt)
+
+    await update.message.reply_text(reply)
+
+is_triggered = any(
+    trigger in text
+    for trigger in TRIGGERS
+)
+
+if is_triggered:
+ 
+ chat_id = update.effective_chat.id
+
+    if not can_reply(chat_id):
+        return
+
+    prompt = f"""
+    Respond naturally to this Telegram group message.
+
+    Message:
+    {text}
+
+    Rules:
+    - Be witty and concise
+    - Keep under 40 words
+    - Friendly tone
+    - Avoid cringe
+    """
+
+    reply = await ask_gemini(prompt)
+
+    await update.message.reply_text(reply)
+
+    return
 
 # Start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
