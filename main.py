@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
+    ChatMemberHandler,
     MessageHandler,
     ContextTypes,
     filters,
@@ -13,26 +14,88 @@ from telegram.ext import (
 import random
 import time
 
-TRIGGERS = [
-    "chaigpt",
-    "chai gpt",
-    "chai-gpt"
-]
+# Define group profiles with language and type
+GROUP_PROFILES = {
 
-last_reply_time = {}
+    # International Group
+    -1001111111111: {
+        "language": "english",
+        "type": "international"
+    },
 
-COOLDOWN_SECONDS = 300
+    # India-wide Group
+    -1002222222222: {
+        "language": "english",
+        "type": "india"
+    },
 
-def can_reply(chat_id):
+    # Marathi Local Group
+    -1003333333333: {
+        "language": "marathi",
+        "type": "local"
+    }
+}
+
+def get_group_language(chat_id):
+
+    profile = GROUP_PROFILES.get(chat_id)
+
+    if not profile:
+        return "english"
+
+    return profile["language"]
+
+# Welcome message when bot is added to a group
+async def welcome_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    result = update.my_chat_member
+
+    old_status = result.old_chat_member.status
+    new_status = result.new_chat_member.status
+
+    if old_status in ["left", "kicked"] and new_status in ["member", "administrator"]:
+
+        intro_message = """
+☕ Hey everyone! I'm ChaiGPT.
+
+I:
+• reply when summoned
+• summarize articles
+• understand multiple languages
+• try not to interrupt humans 😄
+
+Summon me using:
+chaigpt
+        """
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=intro_message
+        )
+
+cooldowns = {}
+
+COOLDOWN_RULES = {
+    "conversation": 60,
+    "summary": 300,
+    "cheap_chat": 180,
+    "meme": 90,
+}
+
+def can_reply(chat_id, task_type):
 
     now = time.time()
 
-    if chat_id not in last_reply_time:
-        last_reply_time[chat_id] = 0
+    key = f"{chat_id}_{task_type}"
 
-    if now - last_reply_time[chat_id] > COOLDOWN_SECONDS:
+    cooldown_seconds = COOLDOWN_RULES.get(task_type, 60)
 
-        last_reply_time[chat_id] = now
+    if key not in cooldowns:
+        cooldowns[key] = 0
+
+    if now - cooldowns[key] > cooldown_seconds:
+
+        cooldowns[key] = now
 
         return True
 
@@ -45,48 +108,79 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+#print("TOKEN:", TELEGRAM_TOKEN)
+
 client = genai.Client(api_key=GOOGLE_API_KEY)
 
 #handle messages that mention the bot's name
 
+def classify_task(text):
+
+    text = text.lower()
+
+    if "http" in text:
+        return "summary"
+
+    if any(word in text for word in [
+        "play",
+        "game",
+        "story",
+        "roleplay",
+        "debate"
+    ]):
+        return "cheap_chat"
+
+    return "conversation"
+
 async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    text = update.message.text.lower()
-    chat_id = update.effective_chat.id
-    chat_type = update.effective_chat.type
-
-    # Ignore private chats for now
-    if chat_type == "private":
+    if not update.message or not update.message.text:
         return
 
-    # Trigger detection
-    is_triggered = any(
-        trigger in text
-        for trigger in TRIGGERS
-    )
+    text = update.message.text.lower().strip()
+
+    chat_id = update.effective_chat.id
+
+    group_language = get_group_language(chat_id)
+
+    task_type = classify_task(text)
+
+    is_triggered = (
+        "chaigpt" in text
+        or task_type == "summary"
+                )
 
     if not is_triggered:
         return
 
-    # Cooldown check
-    if not can_reply(chat_id):
+
+    if not can_reply(chat_id, task_type):
         return
 
-    # AI prompt
     prompt = f"""
-    Respond naturally to this Telegram group message.
+    You are ChaiGPT inside a Telegram group.
 
-    Message:
+    User message:
     {text}
 
     Rules:
-    - Be witty and concise
-    - Keep under 40 words
-    - Friendly tone
+    - Understand any language
+    - Reply briefly in user's input language first
+    - Then continue in {group_language}
+    - Keep concise
+    - Under 40 words
+    - Friendly and witty
     - Avoid cringe
     """
 
-    reply = await ask_gemini(prompt)
+    if task_type == "summary":
+        reply = await ask_gemini(prompt)
+
+    elif task_type == "cheap_chat":
+        reply = await ask_free_model(prompt)
+
+    else:
+        reply = await ask_free_model(prompt)
 
     await update.message.reply_text(reply)
 
@@ -104,6 +198,11 @@ async def ask_gemini(prompt):
     )
 
     return response.text
+
+
+async def ask_free_model(prompt):
+
+    return await ask_gemini(prompt)
 
 async def love_meter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     names = context.args
@@ -235,6 +334,14 @@ async def fortune(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply)
 
+# For URL detection in messages
+import re
+
+
+def contains_url(text):
+    url_pattern = r"https?://\S+"
+    return re.search(url_pattern, text) is not None
+
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
@@ -247,16 +354,28 @@ app.add_handler(CommandHandler("marathi", marathi))
 app.add_handler(CommandHandler("meme", meme))
 
 app.add_handler(
+    ChatMemberHandler(
+        welcome_group,
+        ChatMemberHandler.MY_CHAT_MEMBER
+    )
+)
+
+app.add_handler(
     MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
+        filters.TEXT
+        & ~filters.COMMAND
+        & ~filters.ChatType.PRIVATE,
         chai_group_chat
     )
 )
 
 app.add_handler(
-    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE,
+        handle_message
+    )
 )
-   
+
 
 # Run bot
 print("🤖 Bot is running...")
