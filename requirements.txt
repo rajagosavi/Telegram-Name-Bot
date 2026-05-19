@@ -29,8 +29,10 @@ httplib2==0.31.2
 httpx==0.28.1
 huggingface_hub==1.14.0
 idna==3.13
+jiter==0.14.0
 markdown-it-py==4.1.0
 mdurl==0.1.2
+openai==2.37.0
 packaging==26.2
 proto-plus==1.28.0
 protobuf==5.29.6
