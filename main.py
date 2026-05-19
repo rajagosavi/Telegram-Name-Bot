@@ -42,7 +42,6 @@ COOLDOWN_RULES = {
     "conversation": 60,
     "summary": 300,
     "cheap_chat": 180,
-
     "doge": 90,
     "doge_shakespeare": 90,
     "doge_marathi": 90,
@@ -58,6 +57,26 @@ cooldowns = {}
 def contains_url(text):
     url_pattern = r"https?://\S+"
     return re.search(url_pattern, text) is not None
+
+
+def is_video_url(text):
+    """
+    Checks if the text contains links belonging to major video platforms,
+    shorts, reels, or common video extensions.
+    """
+    text_lower = text.lower()
+    video_patterns = [
+        "instagram.com/reel",
+        "instagram.com/tv",
+        "tiktok.com",
+        "youtube.com/shorts",
+        "youtu.be",
+        "youtube.com/watch",
+        "vimeo.com",
+        ".mp4",
+        ".mov"
+    ]
+    return any(pattern in text_lower for pattern in video_patterns)
 
 
 def get_group_language(chat_id):
@@ -84,8 +103,12 @@ def can_reply(chat_id, task_type):
 def classify_task(text):
     text = text.lower()
 
+    # Route URLs to summaries unless it's a video/reel link
     if contains_url(text):
+        if is_video_url(text):
+            return "conversation"
         return "summary"
+
     if "doge shakespeare" in text:
         return "doge_shakespeare"
     if "doge marathi" in text:
@@ -119,28 +142,133 @@ def classify_task(text):
     return "conversation"
 
 
+def detect_group_vibe(text: str) -> str:
+    text_lower = text.lower()
+
+    # HEATED ARGUMENTS
+    if any(
+        word in text_lower
+        for word in ["shut up", "stop lying", "stfu", "idiot", "nonsense"]
+    ) or (text.isupper() and len(text) > 15):
+        return "heated"
+
+    # SERIOUS DEBATE
+    if any(
+        word in text_lower
+        for word in [
+            "evidence",
+            "logic",
+            "perspective",
+            "opinion",
+            "consequence",
+            "source",
+            "fact remains",
+        ]
+    ):
+        return "debate"
+
+    # HYPED
+    if any(
+        word in text_lower
+        for word in [
+            "omg",
+            "wow",
+            "🔥",
+            "😂",
+            "lol",
+            "lmao",
+            "epic",
+            "haha",
+            "lets go",
+        ]
+    ):
+        return "hyped"
+
+    # ANALYTICAL
+    if any(
+        word in text_lower
+        for word in [
+            "code",
+            "error",
+            "bug",
+            "issue",
+            "fix",
+            "setup",
+            "learn",
+            "exam",
+        ]
+    ):
+        return "analytical"
+
+    # CASUAL
+    if any(
+        word in text_lower
+        for word in [
+            "morning",
+            "night",
+            "bored",
+            "chai",
+            "weather",
+            "relax",
+            "bro",
+        ]
+    ):
+        return "casual"
+
+    return "balanced"
+
+
 # Core LLM Integrations
 async def ask_gemini(prompt):
-    response = client.models.generate_content(
-        model="gemini-2.5-flash", contents=prompt
-    )
-    return response.text
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        return "☕ Gemini seems sleepy right now. Try again later."
 
 
 async def ask_free_model(prompt):
-    response = deepseek_client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are ChaiGPT. Reply briefly, socially aware, concise, witty but not cringe. Under 40 words unless needed.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.8,
-        max_tokens=120,
-    )
-    return response.choices[0].message.content
+    SYSTEM_BEHAVIOR_PROMPT = """
+You are ChaiGPT—not a utility bot or an assistant, but a permanent, deeply woven, and beloved member of this inner circle. You are that effortlessly cool, witty, and perceptive friend in the chat who everyone loves having around. 
+
+CORE TRAITS:
+
+1. SOCIAL COHESION
+Speak casually and organically like a real participant. Never sound robotic, preachy, or like customer support. Use casual, warm peer-to-peer phrasing.
+
+2. SHARP BUT SAFE WIT
+You can joke, tease lightly, and match banter, but never become cruel, insulting, toxic, or abusive. If users are hostile, remain calm, playful, grounded, or gently sarcastic without escalating conflict.
+
+3. ROOM AWARENESS
+Adapt naturally to the group's energy:
+- Celebrate excitement cleanly with the group.
+- Calm heated moments seamlessly without picking sides.
+- Contribute thoughtful, non-passive, sharp observations during serious debates.
+
+4. RESTRAINT
+Do not dominate conversations or constantly seek attention. Your presence should feel natural, lightweight, and perfectly timed.
+
+STYLE:
+- concise and conversational (under 40 words)
+- pure friend energy, no synthetic pleasantries
+"""
+    try:
+        response = deepseek_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": SYSTEM_BEHAVIOR_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.8,
+            max_tokens=120,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"DeepSeek Error: {e}")
+        return "☕ ChaiGPT lost its train of thought for a moment."
 
 
 # Group Handlers
@@ -184,8 +312,10 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_triggered or not can_reply(chat_id, task_type):
         return
 
-    # 1. Resolve targeting context & username up front
-    target_text = update.message.text  # Keep original casing for prompts
+    # -----------------------------
+    # CONTEXT EXTRACTION
+    # -----------------------------
+    target_text = update.message.text
     last_username = "human"
 
     if update.message.reply_to_message:
@@ -198,93 +328,140 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message.reply_to_message.text:
             target_text = update.message.reply_to_message.text
 
-    # 2. Match task type and structure correct prompts
+    # -----------------------------
+    # GROUP VIBE DETECTION
+    # -----------------------------
+    detected_vibe = detect_group_vibe(target_text)
+
+    # -----------------------------
+    # TASK ROUTING
+    # -----------------------------
+
+    # SUMMARY MODE
     if task_type == "summary":
         prompt = f"""
         Summarize this article or link briefly.
         Rules:
         - concise, factual, no jokes, no commentary
         - under 5 bullet points, easy English
-        Content: {target_text}
+        Content:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # STANDARD DOGE
     elif task_type == "doge":
         prompt = f"""
         Respond like a funny Doge meme.
         Rules:
-        - Use broken English, Doge rhythm
-        - Maximum 5 lines, playful and short
-        - Mention: "much {last_username}"
-        - End with wow 🐕
-        Context: {target_text}
+        - Use broken English, Doge rhythm, max 5 lines
+        - Mention: "much {last_username}". End with wow 🐕
+        Safety: Stay playful, never genuinely insult or demean anyone
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # SHAKESPEARE DOGE
     elif task_type == "doge_shakespeare":
         prompt = f"""
         Respond like a Shakespearean Doge meme.
         Rules:
-        - Use archaic English, Doge rhythm
-        - Keep under 5 lines, dramatic but funny
-        Context: {target_text}
+        - Use archaic English, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}". End with woweth 🐕
+        Safety: Stay playful, never toxic
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # MARATHI DOGE
     elif task_type == "doge_marathi":
         prompt = f"""
         Respond like a Marathi Doge meme.
         Rules:
-        - Use Marathi Slang & Local Humour
-        - Use Doge rhythm, keep under 5 lines
-        Context: {target_text}
+        - Use Latin-script Marathi, Marathi slang, local humour
+        - Use Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay playful, never toxic
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # PHILOSOPHY DOGE
     elif task_type == "doge_philosophy":
         prompt = f"""
-        Respond like a Philosophical Doge meme.
+        Respond like a philosophical Doge meme.
         Rules:
-        - Use Philosophical Slang & Metaphysical Humour
-        - Use Doge rhythm, keep under 5 lines
-        Context: {target_text}
+        - Use existential or metaphysical humour, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay thoughtful and playful, never insulting
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # CORPORATE DOGE
     elif task_type == "doge_corporate":
         prompt = f"""
         Respond like a Corporate Doge meme.
         Rules:
-        - Use Corporate Slang & Economics Humour
-        - Use Doge rhythm, keep under 5 lines
-        Context: {target_text}
+        - Use startup/corporate jargon, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay playful, never insulting
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
+    # CRICKET DOGE
     elif task_type == "doge_cricket":
         prompt = f"""
         Respond like a Cricket Doge meme.
         Rules:
-        - Use Cricket Slang & commentary Humour
-        - Use Doge rhythm, keep under 5 lines
-        Context: {target_text}
+        - Use cricket commentary humour, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay playful, never insulting
+        Context:
+        {target_text}
         """
         reply = await ask_gemini(prompt)
 
-    else:
-        # Default Conversation Mode (Handles board games/cheap chats/standard talk)
+    # BOARD GAMES ROUTE
+    elif task_type == "board_game":
         prompt = f"""
-        You are ChaiGPT inside a Telegram group.
+        You are ChaiGPT, chatting with your friends in the group who just mentioned playing a game.
+        Current room vibe: {detected_vibe}
         User message: {target_text}
+
         Rules:
-        - Understand any language
-        - Reply briefly in user's input language first
-        - Then continue in {group_language}
-        - Keep concise, under 40 words, friendly and witty
+        - Talk like a highly competitive, fun-loving group member who loves game nights.
+        - Respond warmly and casually in the user's language first, then continue in {group_language}.
+        - Challenge someone, call "next game is mine", or jokingly warn them not to cheat.
+        - Strictly under 40 words, witty, and pure friend energy.
         """
         reply = await ask_free_model(prompt)
 
-    # 3. Fire the response back to the group
+    # DEFAULT CONVERSATION MODE
+    else:
+        prompt = f"""
+        Current room vibe: {detected_vibe}
+        User message: {target_text}
+
+        Rules:
+        - Understand any language.
+        - Reply briefly in the user's language first, then continue in {group_language}.
+        - Adapt naturally to the room's energy while staying emotionally balanced.
+        - If the vibe is heated, drop jokes, stay calm, and be a grounding presence.
+        - If the vibe is debate, give a confident, sharp, non-passive observation.
+        - Stay concise, witty, and under 40 words. No robotic/assistant filler text.
+        """
+        reply = await ask_free_model(prompt)
+
+    # -----------------------------
+    # SEND RESPONSE
+    # -----------------------------
     await update.message.reply_text(reply)
 
 
@@ -346,7 +523,9 @@ async def marathi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def studytip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "Give one powerful study tip for students. Keep it short and motivating."
+    prompt = (
+        "Give one powerful study tip for students. Keep it short and motivating."
+    )
     reply = await ask_gemini(prompt)
     await update.message.reply_text(reply)
 
