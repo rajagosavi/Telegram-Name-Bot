@@ -119,6 +119,10 @@ def classify_task(text):
         return "doge_philosophy"
     if "doge cricket" in text:
         return "doge_cricket"
+    if "doge ingress" in text:
+        return "doge_ingress"
+    if "doge IT" in text:
+        return "doge_it"
     if "doge" in text:
         return "doge"
 
@@ -421,6 +425,32 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         Respond like a Cricket Doge meme.
         Rules:
         - Use cricket commentary humour, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay playful, never insulting
+        Context:
+        {target_text}
+        """
+        reply = await ask_gemini(prompt)
+
+     # IT DOGE
+    elif task_type == "doge_it":
+        prompt = f"""
+        Respond like an exhausted IT Doge meme.
+        Rules:
+        - Use IT/programmer/systemadmin humour, Doge rhythm, under 5 lines
+        - Mention: "much {last_username}"
+        Safety: Stay playful, never insulting
+        Context:
+        {target_text}
+        """
+        reply = await ask_gemini(prompt)
+
+     # INGRESS DOGE
+    elif task_type == "doge_ingress":
+        prompt = f"""
+        Respond like an Ingress agent Doge meme.
+        Rules:
+        - Use Ingress-themed/ingress terminology humour, Doge rhythm, under 5 lines
         - Mention: "much {last_username}"
         Safety: Stay playful, never insulting
         Context:
