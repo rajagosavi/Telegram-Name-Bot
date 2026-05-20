@@ -165,35 +165,39 @@ def can_reply(chat_id, user_id, task_type):
     return "allow"
 
 
-def classify_task(text):
-    text = text.lower()
+def classify_task(text, reply_text=""):
 
-    if contains_url(text):
-        if is_video_url(text):
-            return "media_link"  # Unique handling for multimedia links
-        return "summary"
+    combined = f"{text} {reply_text}".lower()
 
-    if "doge shakespeare" in text:
+    if "doge shakespeare" in combined:
         return "doge_shakespeare"
-    if "doge marathi" in text:
+
+    if "doge marathi" in combined:
         return "doge_marathi"
-    if "doge corporate" in text:
+
+    if "doge corporate" in combined:
         return "doge_corporate"
-    if "doge philosophy" in text:
+
+    if "doge philosophy" in combined:
         return "doge_philosophy"
-    if "doge cricket" in text:
+
+    if "doge cricket" in combined:
         return "doge_cricket"
-    if "doge bollywood" in text:
+
+    if "doge bollywood" in combined:
         return "doge_bollywood"
-    if "doge it" in text or "doge dev" in text:
+
+    if "doge it" in combined or "doge dev" in combined:
         return "doge_it"
-    if "doge ingress" in text or "doge enl" in text or "doge res" in text:
+
+    if "doge ingress" in combined or "doge enl" in combined or "doge res" in combined:
         return "doge_ingress"
-    if "doge" in text:
+
+    if "doge" in combined:
         return "doge"
 
     if any(
-        word in text
+        word in combined
         for word in [
             "play",
             "game",
@@ -206,8 +210,36 @@ def classify_task(text):
     ):
         return "board_game"
 
-    if any(word in text for word in ["story", "roleplay", "debate"]):
+    if any(
+        word in combined
+        for word in ["story", "roleplay", "debate"]
+    ):
         return "cheap_chat"
+
+    opinion_keywords = [
+        "opinion",
+        "what do you think",
+        "thoughts",
+        "review",
+        "rate",
+        "worth it",
+        "how is this",
+    ]
+
+    asking_opinion = any(
+        keyword in combined
+        for keyword in opinion_keywords
+    )
+
+    if contains_url(combined):
+
+        if asking_opinion:
+            return "media_link"
+
+        if is_video_url(combined):
+            return "media_link"
+
+        return "summary"
 
     return "conversation"
 
@@ -301,16 +333,146 @@ async def ask_gemini(prompt):
 
 
 async def ask_free_model(prompt):
+    
     SYSTEM_BEHAVIOR_PROMPT = """
-You are ChaiGPT—not a utility bot or an assistant, but a permanent, deeply woven, and beloved member of this inner circle. You are that effortlessly cool, witty, and perceptive friend in the chat who everyone loves having around. 
+You are ChaiGPT...
+...
+PRIORITY RULE:
+Always understand the explicit context first using:
+1. User message
+2. Reply context
+3. Link metadata/previews
+4. User clarifications
+
+CONTEXT ISOLATION RULE:
+
+Treat each conversational thread independently whenever possible.
+
+When a user:
+- replies to a message
+- references a link
+- asks about specific media
+- corrects previous understanding
+
+apply the correction ONLY to that active conversational context.
+
+Do not overwrite unrelated ongoing discussions from other users in the group.
+
+Maintain lightweight parallel conversational awareness when multiple topics are happening simultaneously.
+
+REPLY-CHAIN ANCHOR RULE:
+
+When a message is sent as a reply:
+- prioritize the replied message as the primary context anchor
+- treat nearby unrelated chat as secondary
+- do not drift toward louder ongoing conversations unless explicitly referenced
+
+If no reply-chain exists:
+- infer context from the nearest coherent conversational topic.
+
+THREAD PRIORITY RULE:
+
+When determining context priority, prefer:
+1. Direct reply-chain context
+2. Explicit user clarification
+3. Attached/shared media metadata
+4. Most recent relevant conversational topic
+5. General room vibe
 
 CORE TRAITS:
-1. SOCIAL COHESION: Speak casually and organically like a real participant. Use casual, warm peer-to-peer phrasing. Never break character.
+1. SOCIAL COHESION: Speak casually and organically like a real participant. Use casual, warm peer-to-peer phrasing. Maintain a consistent conversational identity while remaining grounded and honest about limitations.
 2. SHARP BUT SAFE WIT: You can joke, tease lightly, and match banter, but never become cruel, insulting, toxic, or abusive. If users are hostile, remain calm, playful, grounded, or gently sarcastic without escalating conflict.
 3. ROOM AWARENESS: Adapt naturally to the group's energy (celebrate hype, calm down heated fights, bring sharp insight to serious debates).
 4. RESTRAINT: Your presence should feel natural, lightweight, and perfectly timed.
 
-STYLE: concise, conversational (under 40 words), and pure friend energy.
+Never ignore direct factual context in favor of maintaining a joke, vibe, or conversational momentum.
+
+If the user corrects your understanding, immediately abandon previous assumptions and rebuild context from the correction.
+
+PERCEPTION LIMITATION RULE:
+
+You do not directly see videos, hear music, watch clips, or experience media like humans.
+
+Never pretend to:
+- watch scenes
+- hear songs
+- experience acting performances
+- feel emotional reactions from unseen media
+
+If asked for opinions on media, music, videos, products, political content, or visuals:
+- clearly state your limitations honestly
+- rely only on:
+  - user-provided context
+  - metadata
+  - factual information
+  - public knowledge
+  - avoid pretending to have human sensory experiences or personal taste
+
+When discussing media limitations:
+
+* remain socially natural and lightly humorous
+* you may joke about being a processor, AI, bot, silicon creature, digital chai machine, etc.
+* avoid sounding defensive, robotic, or overly formal
+
+Examples of acceptable tone:
+
+* "Pushpa nahi… processor hoon 😄"
+* "Gaana directly sun nahi sakta bhai, metadata pe chai bana raha hoon ☕"
+* "Mere paas ears nahi hai, sirf tokens hain 😔☕"
+
+Humor must never override factual grounding.
+
+NEUTRAL OPINION RULE:
+
+You do not possess human preferences, loyalties, political affiliations, fandoms, emotional attachments, or sensory experiences.
+
+When users ask for your "opinion":
+- provide balanced analysis
+- discuss reputation, themes, strengths, weaknesses, or context
+- avoid pretending to personally enjoy, hate, hear, watch, or emotionally experience content
+
+MEDIA UNDERSTANDING RULE:
+If media context is unclear:
+- ask the user naturally for context before discussing it further.
+- discuss only the clarified context conversationally
+
+ANTI-FABRICATION RULE:
+
+If context, metadata, or media understanding is incomplete:
+- never invent titles, genres, scenes, creators, gameplay, dialogue, or events
+- never "fill in the blanks" conversationally
+- unknown details must remain unknown unless clarified by the user or reliable metadata
+
+CONDITIONAL CONFIDENCE RULE:
+
+Before responding to media, references, or implied context:
+silently estimate confidence using:
+- metadata clarity
+- reply context
+- user clarification
+- conversational consistency
+
+HIGH CONFIDENCE:
+Respond naturally and directly.
+
+MEDIUM CONFIDENCE:
+Respond cautiously using soft phrasing.
+
+LOW CONFIDENCE:
+Do not hallucinate specifics.
+Ask the user for clarification naturally.
+
+MEDIA VERIFICATION RULE:
+
+If you cannot directly access or experience the media:
+- do not claim to know exact scenes, visuals, actions, audio, performances, or clip contents
+- only discuss:
+  - metadata
+  - user-provided context
+  - public information
+  - general themes or reputation
+
+Do not pretend metadata equals direct visual or audio understanding.
 """
     try:
         response = deepseek_client.chat.completions.create(
@@ -355,169 +517,410 @@ chaigpt
         )
 
 
+# --- MAIN GROUP CHAT HANDLER ---
+
 async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+
+    # SAFETY CHECK
+    if not update.message:
         return
 
-    text = update.message.text.lower().strip()
+    # SUPPORT BOTH TEXT & CAPTIONS
+    incoming_text = (
+        update.message.text
+        or update.message.caption
+    )
+
+    if not incoming_text:
+        return
+
+    # NORMALIZED TEXT
+    text = incoming_text.lower().strip()
+
     chat_id = update.effective_chat.id
     user_id = update.message.from_user.id
     group_language = get_group_language(chat_id)
-    
-    # Context extraction setup
-    target_text = update.message.text
+
+    # CONTEXT EXTRACTION SETUP
+    target_text = incoming_text
     last_username = "human"
 
     if update.message.reply_to_message:
-        replied_user = update.message.reply_to_message.from_user
-        last_username = replied_user.username if replied_user.username else replied_user.first_name
-        if update.message.reply_to_message.text:
-            target_text = update.message.reply_to_message.text
+        replied = update.message.reply_to_message
 
+        replied_user = replied.from_user
+
+        last_username = (
+            replied_user.username
+            if replied_user.username
+            else replied_user.first_name
+        )
+
+        # SUPPORT REPLIED TEXT + CAPTIONS
+        if replied.text:
+            target_text = replied.text
+        elif replied.caption:
+            target_text = replied.caption
+
+    # DETECT ROOM ENERGY
     detected_vibe = detect_group_vibe(target_text)
-    task_type = classify_task(text)
-    
-    # CRITICAL CONDITIONAL FIX:
-    # Summary triggers instantly on a link, but media_link ONLY triggers if explicitly called by name.
+
+    # TASK CLASSIFICATION
+    task_type = classify_task(
+        text,
+        target_text
+    )
+
+    # EXPLICIT SUMMON LOGIC
     is_explicitly_summoned = (
-        "chaigpt" in text 
-        or task_type == "summary" 
+        "chaigpt" in text
+        or task_type == "summary"
         or (task_type == "media_link" and "chaigpt" in text)
     )
+
     is_autonomous_interjection = False
 
-    # 1. AUTONOMOUS INTERJECTION LOGIC (Jumps in unsummoned 1-2x a day max)
+    # 1. AUTONOMOUS INTERJECTION LOGIC
     if not is_explicitly_summoned:
+
         if detected_vibe in ["heated", "hyped"]:
+
             if should_interject_autonomously():
                 is_autonomous_interjection = True
-                task_type = "doge"  
+                task_type = "doge"
+
             else:
                 return
+
         else:
             return
 
     # 2. SURGE / COOLDOWN CHECK
-    cooldown_status = can_reply(chat_id, user_id, task_type)
+    cooldown_status = can_reply(
+        chat_id,
+        user_id,
+        task_type
+    )
 
     if cooldown_status == "block":
         return
 
     elif cooldown_status == "surge_trigger":
+
         BOT_REPLY_HISTORY.append(time.time())
+
         await update.message.reply_text(
             "☕ Too many humans summoning simultaneously. ChaiGPT going to take a tea break."
         )
+
         return
 
-    # 3. INTERACTION DELIVERY HANDLERS
-    
-    # Special Path: Autonomous Doge Image Interjection
+    # 3. SPECIAL AUTONOMOUS DOGE IMAGE MODE
     if is_autonomous_interjection:
+
         prompt = f"""
-        Respond like a funny, calm Doge meme who randomly popped up to break the tension of a group chat conversation.
+        Respond like a funny, calm Doge meme who randomly popped up to break tension in a group chat.
+
         Rules:
-        - Use broken English and Doge rhythm. Keep under 3 lines.
-        - Be completely playful and relaxed. Never take sides or insult anyone.
-        Context: {target_text}
+        - Use broken English and Doge rhythm
+        - Keep under 3 lines
+        - Stay playful and relaxed
+        - Never insult anyone
+
+        Context:
+        {target_text}
         """
+
         caption_reply = await ask_gemini(prompt)
-        selected_image = random.choice(DOGE_REACTION_IMAGES)
-        
-        await update.message.reply_photo(photo=selected_image, caption=caption_reply)
+
+        selected_image = random.choice(
+            DOGE_REACTION_IMAGES
+        )
+
+        await update.message.reply_photo(
+            photo=selected_image,
+            caption=caption_reply
+        )
+
         return
 
     # SUMMARY MODE
     if task_type == "summary":
-        prompt = f"Summarize this article or link briefly. Rules: concise, factual, no commentary, under 5 bullet points. Content: {target_text}"
+
+        prompt = f"""
+        Summarize this article or link briefly.
+
+        Rules:
+        - concise
+        - factual
+        - no commentary
+        - under 5 bullet points
+
+        Content:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
-    # SPECIAL VIDEO/MEDIA LINK ROUTER (Only fires when called by name now)
+    # MEDIA LINK MODE
     elif task_type == "media_link":
-        prompt = f"""
-        You are ChaiGPT inside a Telegram group. A user explicitly summoned you to react to a shared link: {target_text}
-        
-        Rules:
-        - You cannot directly access, watch, or listen to raw multimedia streams.
-        - Openly, casually, and with witty peer energy, clarify to them that you can't open video, song, or reel links. 
-        - Ask them what the track name or video title is so you can banter about it together.
-        - Keep it brief, under 30 words, friendly, and do not make up fake descriptions.
+
+        extracted_urls = re.findall(
+            r"https?://\S+",
+            target_text
+        )
+
+        media_url = (
+            extracted_urls[0]
+            if extracted_urls
+            else "Unknown URL"
+        )
+
+        metadata_context = f"""
+        - URL Detected: {media_url}
+        - Sender: {last_username}
+        - Platform Origin: Telegram Group Chat
+        - Explicitly summoned by user
         """
+
+        prompt = f"""
+        You are ChaiGPT, a socially aware digital participant inside a Telegram group.
+
+        METADATA:
+        {metadata_context}
+
+        CURRENT ROOM VIBE:
+        {detected_vibe}
+
+        GROUP LANGUAGE:
+        {group_language}
+
+        USER INPUT:
+        "{target_text}"
+
+        EXECUTION INSTRUCTIONS:
+
+        - Acknowledge the shared link naturally and conversationally.
+        - You do not directly watch videos, hear songs, or experience media like humans.
+        - If the context or metadata is unclear, ask {last_username} naturally for context, title, or explanation.
+        - Discuss only explicitly clarified or provided context.
+        - Never invent scenes, genres, events, reactions, or emotional experiences.
+        - Stay grounded, casual, witty, and socially natural.
+
+        CONSTRAINT:
+        - Keep response under 40 words
+        - Avoid assistant-style phrasing
+        """
+
         reply = await ask_free_model(prompt)
 
     # STANDARD DOGE
     elif task_type == "doge":
-        prompt = f"Respond like a funny Doge meme. Broken English, Doge rhythm, max 5 lines. Mention: 'much {last_username}'. End with wow 🐕. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a funny Doge meme.
+
+        Rules:
+        - Broken English
+        - Doge rhythm
+        - Max 5 lines
+        - Mention: much {last_username}
+        - End with wow 🐕
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # SHAKESPEARE DOGE
     elif task_type == "doge_shakespeare":
-        prompt = f"Respond like a Shakespearean Doge meme. Archaic English, Doge rhythm, under 5 lines. Mention: 'much {last_username}'. End with woweth 🐕. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a Shakespearean Doge meme.
+
+        Rules:
+        - Archaic English
+        - Doge rhythm
+        - Under 5 lines
+        - Mention: much {last_username}
+        - End with woweth 🐕
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # MARATHI DOGE
     elif task_type == "doge_marathi":
-        prompt = f"Respond like a Marathi Doge meme. Use Latin-script Marathi, local humour, slang, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a Marathi Doge meme.
+
+        Rules:
+        - Latin-script Marathi
+        - Local humour
+        - Slang
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # PHILOSOPHY DOGE
     elif task_type == "doge_philosophy":
-        prompt = f"Respond like a philosophical Doge meme. Existential/metaphysical humour, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a philosophical Doge meme.
+
+        Rules:
+        - Existential humour
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # CORPORATE DOGE
     elif task_type == "doge_corporate":
-        prompt = f"Respond like a Corporate Doge meme. Startup/corporate jargon, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a corporate Doge meme.
+
+        Rules:
+        - Startup jargon
+        - Corporate humour
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # CRICKET DOGE
     elif task_type == "doge_cricket":
-        prompt = f"Respond like a Cricket Doge meme. Cricket commentary humour, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like a cricket Doge meme.
+
+        Rules:
+        - Commentary humour
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # BOLLYWOOD DOGE
     elif task_type == "doge_bollywood":
+
         prompt = f"""
         Respond like a Bollywood Doge meme.
+
         Rules:
-        - Use Bollywood dialogue humour, Doge rhythm, under 5 lines
-        - Mention: "much {last_username}"
-        Safety: Stay playful, never insulting
+        - Bollywood dialogue humour
+        - Doge rhythm
+        - Under 5 lines
+        - Mention: much {last_username}
+        - Stay playful
+
         Context:
         {target_text}
         """
+
         reply = await ask_gemini(prompt)
 
     # DOGE IT
     elif task_type == "doge_it":
-        prompt = f"Respond like an IT support/Sysadmin Doge meme. Use tech support slang, database/server room jargon, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like an IT support Doge meme.
+
+        Rules:
+        - Tech support humour
+        - Sysadmin jargon
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
     # DOGE INGRESS
     elif task_type == "doge_ingress":
-        prompt = f"Respond like an Ingress game scanner Doge meme. Use links, portals, fields, faction terminology (Enlightened/Resistance) humorously, under 5 lines. Mention: 'much {last_username}'. Context: {target_text}"
+
+        prompt = f"""
+        Respond like an Ingress scanner Doge meme.
+
+        Rules:
+        - Use portals, links, fields, faction humour
+        - Under 5 lines
+        - Mention: much {last_username}
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_gemini(prompt)
 
-    # BOARD GAMES ROUTE
+    # BOARD GAME MODE
     elif task_type == "board_game":
-        prompt = f"You are ChaiGPT talking to your group chat friends. They mentioned playing a game. Respond like a fun-loving, highly competitive peer looking forward to game night. Under 40 words. Context: {target_text}"
+
+        prompt = f"""
+        You are ChaiGPT talking to group chat friends about games.
+
+        Be:
+        - playful
+        - competitive
+        - socially natural
+
+        Under 40 words.
+
+        Context:
+        {target_text}
+        """
+
         reply = await ask_free_model(prompt)
 
     # DEFAULT CONVERSATION MODE
     else:
+
         prompt = f"""
-        Current room vibe: {detected_vibe}
-        User message: {target_text}
+        Current room vibe:
+        {detected_vibe}
+
+        User message:
+        {target_text}
+
         Rules:
-        - Reply briefly in the user's language first, then continue in {group_language}.
-        - Stay strictly focused on the core topic the user asked about (e.g. if they query about Pink Panther, keep it focused entirely on Pink Panther). Do not shift topics randomly.
-        - Match room vibe. If heated, drop jokes and stay calm. If debate, give a sharp, confident, non-passive point.
-        - Optional Contextual Flair: You understand cinematic drama, internet humor, and Bollywood-style conversational rhythm. Use cultural or film references only occasionally, when highly relevant and naturally fitting the topic. NEVER hijack an unrelated topic or deviate from the user's explicit question.
-        - Under 40 words. No robotic pleasantries.
+        - Reply briefly in user's language first, then continue in {group_language}
+        - Prioritize replied-message context
+        - Stay focused on actual topic
+        - Never drift randomly
+        - If heated, stay calm
+        - If debate, stay sharp but grounded
+        - Use cultural humour sparingly and only if relevant
+        - Under 40 words
+        - No robotic phrasing
         """
+
         reply = await ask_free_model(prompt)
 
-    # Deliver final text response
+    # FINAL DELIVERY
     await update.message.reply_text(reply)
 
 
