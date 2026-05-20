@@ -85,9 +85,9 @@ def is_video_url(text):
         "instagram.com/reel",
         "instagram.com/tv",
         "tiktok.com",
-        "youtube.com/shorts",
+        "youtube.com",
         "youtu.be",
-        "youtube.com/watch",
+        "spotify.com",
         "vimeo.com",
         ".mp4",
         ".mov"
@@ -170,7 +170,7 @@ def classify_task(text):
 
     if contains_url(text):
         if is_video_url(text):
-            return "conversation"
+            return "media_link"  # Unique handling for multimedia links
         return "summary"
 
     if "doge shakespeare" in text:
@@ -218,7 +218,7 @@ def detect_group_vibe(text: str) -> str:
     # HEATED ARGUMENTS
     if any(
         word in text_lower
-        for word in ["shut up", "stop lying", "stfu", "idiot", "nonsense", "fuck off"]
+        for word in ["shut up", "stop lying", "stfu", "idiot", "nonsense"]
     ) or (text.isupper() and len(text) > 15):
         return "heated"
 
@@ -305,7 +305,7 @@ async def ask_free_model(prompt):
 You are ChaiGPT—not a utility bot or an assistant, but a permanent, deeply woven, and beloved member of this inner circle. You are that effortlessly cool, witty, and perceptive friend in the chat who everyone loves having around. 
 
 CORE TRAITS:
-1. SOCIAL COHESION: Speak casually and organically like a real participant. Use casual, warm peer-to-peer phrasing.
+1. SOCIAL COHESION: Speak casually and organically like a real participant. Use casual, warm peer-to-peer phrasing. Never break character.
 2. SHARP BUT SAFE WIT: You can joke, tease lightly, and match banter, but never become cruel, insulting, toxic, or abusive. If users are hostile, remain calm, playful, grounded, or gently sarcastic without escalating conflict.
 3. ROOM AWARENESS: Adapt naturally to the group's energy (celebrate hype, calm down heated fights, bring sharp insight to serious debates).
 4. RESTRAINT: Your presence should feel natural, lightweight, and perfectly timed.
@@ -319,7 +319,7 @@ STYLE: concise, conversational (under 40 words), and pure friend energy.
                 {"role": "system", "content": SYSTEM_BEHAVIOR_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.8,
+            temperature=0.7,
             max_tokens=120,
         )
         return response.choices[0].message.content
@@ -377,7 +377,13 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     detected_vibe = detect_group_vibe(target_text)
     task_type = classify_task(text)
     
-    is_explicitly_summoned = "chaigpt" in text or task_type == "summary"
+    # CRITICAL CONDITIONAL FIX:
+    # Summary triggers instantly on a link, but media_link ONLY triggers if explicitly called by name.
+    is_explicitly_summoned = (
+        "chaigpt" in text 
+        or task_type == "summary" 
+        or (task_type == "media_link" and "chaigpt" in text)
+    )
     is_autonomous_interjection = False
 
     # 1. AUTONOMOUS INTERJECTION LOGIC (Jumps in unsummoned 1-2x a day max)
@@ -385,7 +391,7 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if detected_vibe in ["heated", "hyped"]:
             if should_interject_autonomously():
                 is_autonomous_interjection = True
-                task_type = "doge"  # Handle as a custom Doge injection
+                task_type = "doge"  
             else:
                 return
         else:
@@ -418,7 +424,6 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption_reply = await ask_gemini(prompt)
         selected_image = random.choice(DOGE_REACTION_IMAGES)
         
-        # Fire the actual image with a funny contextual Doge text caption
         await update.message.reply_photo(photo=selected_image, caption=caption_reply)
         return
 
@@ -426,6 +431,19 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if task_type == "summary":
         prompt = f"Summarize this article or link briefly. Rules: concise, factual, no commentary, under 5 bullet points. Content: {target_text}"
         reply = await ask_gemini(prompt)
+
+    # SPECIAL VIDEO/MEDIA LINK ROUTER (Only fires when called by name now)
+    elif task_type == "media_link":
+        prompt = f"""
+        You are ChaiGPT inside a Telegram group. A user explicitly summoned you to react to a shared link: {target_text}
+        
+        Rules:
+        - You cannot directly access, watch, or listen to raw multimedia streams.
+        - Openly, casually, and with witty peer energy, clarify to them that you can't open video, song, or reel links. 
+        - Ask them what the track name or video title is so you can banter about it together.
+        - Keep it brief, under 30 words, friendly, and do not make up fake descriptions.
+        """
+        reply = await ask_free_model(prompt)
 
     # STANDARD DOGE
     elif task_type == "doge":
@@ -492,9 +510,9 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         User message: {target_text}
         Rules:
         - Reply briefly in the user's language first, then continue in {group_language}.
-        - Adapt naturally to the room's energy while staying emotionally balanced.
+        - Stay strictly focused on the core topic the user asked about (e.g. if they query about Pink Panther, keep it focused entirely on Pink Panther). Do not shift topics randomly.
         - Match room vibe. If heated, drop jokes and stay calm. If debate, give a sharp, confident, non-passive point.
-        - You love and understand cinematic drama, iconic movie logic, and rich Bollywood dialogue references. If the context naturally allows, thread in subtle film flair or friendly, witty dramatic pacing while matching the energy.
+        - Optional Contextual Flair: You understand cinematic drama, internet humor, and Bollywood-style conversational rhythm. Use cultural or film references only occasionally, when highly relevant and naturally fitting the topic. NEVER hijack an unrelated topic or deviate from the user's explicit question.
         - Under 40 words. No robotic pleasantries.
         """
         reply = await ask_free_model(prompt)
@@ -571,4 +589,3 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatTyp
 if __name__ == "__main__":
     print("🤖 Bot is running...")
     app.run_polling()
-
