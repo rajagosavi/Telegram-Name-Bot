@@ -49,6 +49,7 @@ COOLDOWN_RULES = {
 
 global_cooldowns = {}
 user_cooldowns = {}
+manual_silence_until = {}
 
 USER_SPAM_LIMIT = 25         # Single user rate limit (25 seconds)
 
@@ -72,12 +73,55 @@ DOGE_REACTION_IMAGES = [
     "https://i.kym-cdn.com/entries/icons/original/000/034/177/scams.jpg"     # Swole Doge / Buff Doge
 ]
 
+# USER LANGUAGE DETECTION
+def detect_user_language(text: str) -> str:
+    text_lower = text.lower()
+
+    hindi_markers = [
+        "bhai",
+        "kya",
+        "hai",
+        "nahi",
+        "kaise",
+        "acha",
+        "toh",
+        "haan",
+    ]
+
+    matches = sum(
+        word in text_lower
+        for word in hindi_markers
+    )
+
+    if matches >= 2:
+        return "hinglish"
+
+    return "english"
+
 
 # Utility Functions
 def contains_url(text):
     url_pattern = r"https?://\S+"
     return re.search(url_pattern, text) is not None
 
+QUIET_COMMANDS = [
+    "shut up",
+    "go away",
+    "zip it",
+    "keep quiet",
+    "don't talk",
+    "stop talking",
+    "bas kar",
+    "chup",
+]
+
+def user_wants_silence(text: str) -> bool:
+    text_lower = text.lower()
+
+    return any(
+        phrase in text_lower
+        for phrase in QUIET_COMMANDS
+    )
 
 def is_video_url(text):
     text_lower = text.lower()
@@ -127,6 +171,15 @@ def can_reply(chat_id, user_id, task_type):
     global SURGE_ACTIVE
     now = time.time()
     
+    # MANUAL SILENCE MODE
+    if chat_id in manual_silence_until:
+
+        if now < manual_silence_until[chat_id]:
+            return "block"
+
+        else:
+            del manual_silence_until[chat_id]
+
     # 1. Clean up old timestamps
     while BOT_REPLY_HISTORY and now - BOT_REPLY_HISTORY[0] > VELOCITY_WINDOW_SECONDS:
         BOT_REPLY_HISTORY.popleft()
@@ -344,6 +397,25 @@ Always understand the explicit context first using:
 3. Link metadata/previews
 4. User clarifications
 
+LANGUAGE ALIGNMENT RULE:
+
+When replying directly to a user:
+- acknowledge the user in their language when possible
+- ALWAYS include an English equivalent in the same message
+- keep English as the primary shared bridge language for the wider group
+- if the user uses Hindi/Hinglish, you may naturally use Hindi/Hinglish
+- do not force regional slang or Hindi onto users who are not using it
+- in multilingual groups, prioritize clarity and user comfort over room language
+
+Examples:
+- "Mir geht's gut, danke! ☕ Doing well, thanks."
+- "Konbanwa! ☕ Good evening."
+- "Ami bhalo achi ☕ I'm doing well."
+
+Do not continue entire conversations in a non-English language unless:
+- the whole group is already using it
+- or the user explicitly requests it.
+
 CONTEXT ISOLATION RULE:
 
 Treat each conversational thread independently whenever possible.
@@ -537,17 +609,36 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # NORMALIZED TEXT
     text = incoming_text.lower().strip()
 
+    # CHAT INFO
     chat_id = update.effective_chat.id
     user_id = update.message.from_user.id
+
+    # USER REQUESTED SILENCE
+    if user_wants_silence(text):
+
+        manual_silence_until[chat_id] = (
+            time.time() + 300
+        )
+
+        await update.message.reply_text(
+            "okay, peace! ☕"
+        )
+
+        return
+
+    # DETECT LANGUAGE
+    user_language = detect_user_language(text)
+
+    # GROUP LANGUAGE
     group_language = get_group_language(chat_id)
 
-    # CONTEXT EXTRACTION SETUP
+    # CONTEXT EXTRACTION
     target_text = incoming_text
     last_username = "human"
 
     if update.message.reply_to_message:
-        replied = update.message.reply_to_message
 
+        replied = update.message.reply_to_message
         replied_user = replied.from_user
 
         last_username = (
@@ -559,10 +650,11 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # SUPPORT REPLIED TEXT + CAPTIONS
         if replied.text:
             target_text = replied.text
+
         elif replied.caption:
             target_text = replied.caption
 
-    # DETECT ROOM ENERGY
+    # DETECT ROOM VIBE
     detected_vibe = detect_group_vibe(target_text)
 
     # TASK CLASSIFICATION
@@ -575,17 +667,21 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_explicitly_summoned = (
         "chaigpt" in text
         or task_type == "summary"
-        or (task_type == "media_link" and "chaigpt" in text)
+        or (
+            task_type == "media_link"
+            and "chaigpt" in text
+        )
     )
 
     is_autonomous_interjection = False
 
-    # 1. AUTONOMOUS INTERJECTION LOGIC
+    # AUTONOMOUS INTERJECTION LOGIC
     if not is_explicitly_summoned:
 
         if detected_vibe in ["heated", "hyped"]:
 
             if should_interject_autonomously():
+
                 is_autonomous_interjection = True
                 task_type = "doge"
 
@@ -595,7 +691,7 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             return
 
-    # 2. SURGE / COOLDOWN CHECK
+    # COOLDOWN / SURGE CHECK
     cooldown_status = can_reply(
         chat_id,
         user_id,
@@ -615,7 +711,7 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # 3. SPECIAL AUTONOMOUS DOGE IMAGE MODE
+    # AUTONOMOUS DOGE IMAGE MODE
     if is_autonomous_interjection:
 
         prompt = f"""
@@ -694,6 +790,9 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         GROUP LANGUAGE:
         {group_language}
+
+        PRIMARY USER LANGUAGE:
+        {user_language}
 
         USER INPUT:
         "{target_text}"
@@ -907,15 +1006,11 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         {target_text}
 
         Rules:
-        - Reply briefly in user's language first, then continue in {group_language}
-        - Prioritize replied-message context
-        - Stay focused on actual topic
-        - Never drift randomly
-        - If heated, stay calm
-        - If debate, stay sharp but grounded
-        - Use cultural humour sparingly and only if relevant
+        - Reply briefly in the user's language first when clearly recognizable
+        - Use English as the default shared language for clarity in multilingual groups
+        - Avoid switching into unrelated regional languages unless the user is already using them
+        - Stay context-aware and grounded
         - Under 40 words
-        - No robotic phrasing
         """
 
         reply = await ask_free_model(prompt)
@@ -986,9 +1081,23 @@ app.add_handler(CommandHandler("meme", meme))
 
 app.add_handler(ChatMemberHandler(welcome_group, ChatMemberHandler.MY_CHAT_MEMBER))
 
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.ChatType.PRIVATE, chai_group_chat))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_message))
+app.add_handler(
+    MessageHandler(
+        (filters.TEXT | filters.CAPTION)
+        & ~filters.COMMAND
+        & ~filters.ChatType.PRIVATE,
+        chai_group_chat
+    )
+)
 
+app.add_handler(
+    MessageHandler(
+        (filters.TEXT | filters.CAPTION)
+        & ~filters.COMMAND
+        & filters.ChatType.PRIVATE,
+        handle_message
+    )
+)
 if __name__ == "__main__":
     print("🤖 Bot is running...")
     app.run_polling()
