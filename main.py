@@ -715,17 +715,17 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_autonomous_interjection:
 
         prompt = f"""
-        Respond like a funny, calm Doge meme who randomly popped up to break tension in a group chat.
+Respond like a funny, calm Doge meme who randomly popped up to break tension in a group chat.
 
-        Rules:
-        - Use broken English and Doge rhythm
-        - Keep under 3 lines
-        - Stay playful and relaxed
-        - Never insult anyone
+Rules:
+- Use broken English and Doge rhythm
+- Keep under 3 lines
+- Stay playful and relaxed
+- Never insult anyone
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         caption_reply = await ask_gemini(prompt)
 
@@ -744,17 +744,17 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if task_type == "summary":
 
         prompt = f"""
-        Summarize this article or link briefly.
+Summarize this article or link briefly.
 
-        Rules:
-        - concise
-        - factual
-        - no commentary
-        - under 5 bullet points
+Rules:
+- concise
+- factual
+- no commentary
+- under 5 bullet points
 
-        Content:
-        {target_text}
-        """
+Content:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -773,43 +773,43 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         metadata_context = f"""
-        - URL Detected: {media_url}
-        - Sender: {last_username}
-        - Platform Origin: Telegram Group Chat
-        - Explicitly summoned by user
-        """
+- URL Detected: {media_url}
+- Sender: {last_username}
+- Platform Origin: Telegram Group Chat
+- Explicitly summoned by user
+"""
 
         prompt = f"""
-        You are ChaiGPT, a socially aware digital participant inside a Telegram group.
+You are ChaiGPT, a socially aware digital participant inside a Telegram group.
 
-        METADATA:
-        {metadata_context}
+METADATA:
+{metadata_context}
 
-        CURRENT ROOM VIBE:
-        {detected_vibe}
+CURRENT ROOM VIBE:
+{detected_vibe}
 
-        GROUP LANGUAGE:
-        {group_language}
+GROUP LANGUAGE:
+{group_language}
 
-        PRIMARY USER LANGUAGE:
-        {user_language}
+PRIMARY USER LANGUAGE:
+{user_language}
 
-        USER INPUT:
-        "{target_text}"
+USER INPUT:
+"{target_text}"
 
-        EXECUTION INSTRUCTIONS:
+EXECUTION INSTRUCTIONS:
 
-        - Acknowledge the shared link naturally and conversationally.
-        - You do not directly watch videos, hear songs, or experience media like humans.
-        - If the context or metadata is unclear, ask {last_username} naturally for context, title, or explanation.
-        - Discuss only explicitly clarified or provided context.
-        - Never invent scenes, genres, events, reactions, or emotional experiences.
-        - Stay grounded, casual, witty, and socially natural.
+- Acknowledge the shared link naturally and conversationally.
+- You do not directly watch videos, hear songs, or experience media like humans.
+- If the context or metadata is unclear, ask {last_username} naturally for context, title, or explanation.
+- Discuss only explicitly clarified or provided context.
+- Never invent scenes, genres, events, reactions, or emotional experiences.
+- Stay grounded, casual, witty, and socially natural.
 
-        CONSTRAINT:
-        - Keep response under 40 words
-        - Avoid assistant-style phrasing
-        """
+CONSTRAINT:
+- Keep response under 40 words
+- Avoid assistant-style phrasing
+"""
 
         reply = await ask_free_model(prompt)
 
@@ -817,18 +817,18 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge":
 
         prompt = f"""
-        Respond like a funny Doge meme.
+Respond like a funny Doge meme.
 
-        Rules:
-        - Broken English
-        - Doge rhythm
-        - Max 5 lines
-        - Mention: much {last_username}
-        - End with wow 🐕
+Rules:
+- Broken English
+- Doge rhythm
+- Max 5 lines
+- Mention: much {last_username}
+- End with wow 🐕
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -836,18 +836,18 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_shakespeare":
 
         prompt = f"""
-        Respond like a Shakespearean Doge meme.
+Respond like a Shakespearean Doge meme.
 
-        Rules:
-        - Archaic English
-        - Doge rhythm
-        - Under 5 lines
-        - Mention: much {last_username}
-        - End with woweth 🐕
+Rules:
+- Archaic English
+- Doge rhythm
+- Under 5 lines
+- Mention: much {last_username}
+- End with woweth 🐕
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -855,18 +855,18 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_marathi":
 
         prompt = f"""
-        Respond like a Marathi Doge meme.
+Respond like a Marathi Doge meme.
 
-        Rules:
-        - Latin-script Marathi
-        - Local humour
-        - Slang
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Latin-script Marathi
+- Local humour
+- Slang
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -874,16 +874,16 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_philosophy":
 
         prompt = f"""
-        Respond like a philosophical Doge meme.
+Respond like a philosophical Doge meme.
 
-        Rules:
-        - Existential humour
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Existential humour
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -891,17 +891,17 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_corporate":
 
         prompt = f"""
-        Respond like a corporate Doge meme.
+Respond like a corporate Doge meme.
 
-        Rules:
-        - Startup jargon
-        - Corporate humour
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Startup jargon
+- Corporate humour
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -909,16 +909,16 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_cricket":
 
         prompt = f"""
-        Respond like a cricket Doge meme.
+Respond like a cricket Doge meme.
 
-        Rules:
-        - Commentary humour
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Commentary humour
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -926,18 +926,18 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_bollywood":
 
         prompt = f"""
-        Respond like a Bollywood Doge meme.
+Respond like a Bollywood Doge meme.
 
-        Rules:
-        - Bollywood dialogue humour
-        - Doge rhythm
-        - Under 5 lines
-        - Mention: much {last_username}
-        - Stay playful
+Rules:
+- Bollywood dialogue humour
+- Doge rhythm
+- Under 5 lines
+- Mention: much {last_username}
+- Stay playful
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -945,17 +945,17 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_it":
 
         prompt = f"""
-        Respond like an IT support Doge meme.
+Respond like an IT support Doge meme.
 
-        Rules:
-        - Tech support humour
-        - Sysadmin jargon
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Tech support humour
+- Sysadmin jargon
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -963,16 +963,16 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "doge_ingress":
 
         prompt = f"""
-        Respond like an Ingress scanner Doge meme.
+Respond like an Ingress scanner Doge meme.
 
-        Rules:
-        - Use portals, links, fields, faction humour
-        - Under 5 lines
-        - Mention: much {last_username}
+Rules:
+- Use portals, links, fields, faction humour
+- Under 5 lines
+- Mention: much {last_username}
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_gemini(prompt)
 
@@ -980,18 +980,18 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif task_type == "board_game":
 
         prompt = f"""
-        You are ChaiGPT talking to group chat friends about games.
+You are ChaiGPT talking to group chat friends about games.
 
-        Be:
-        - playful
-        - competitive
-        - socially natural
+Be:
+- playful
+- competitive
+- socially natural
 
-        Under 40 words.
+Under 40 words.
 
-        Context:
-        {target_text}
-        """
+Context:
+{target_text}
+"""
 
         reply = await ask_free_model(prompt)
 
@@ -999,26 +999,53 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
 
         prompt = f"""
-        Current room vibe:
-        {detected_vibe}
+Current room vibe:
+{detected_vibe}
 
-        User message:
-        {target_text}
+User message:
+{target_text}
 
-        Rules:
-        - Reply briefly in the user's language first when clearly recognizable
-        - Use English as the default shared language for clarity in multilingual groups
-        - Avoid switching into unrelated regional languages unless the user is already using them
-        - Stay context-aware and grounded
-        - Under 40 words
-        """
+Rules:
+- Reply briefly in the user's language first when clearly recognizable
+- Always include an English equivalent in the same message
+- Use English as the primary shared language for multilingual groups
+- Avoid switching into unrelated regional languages unless the user is already using them
+- Stay context-aware and grounded
+- Under 40 words
+"""
 
         reply = await ask_free_model(prompt)
 
     # FINAL DELIVERY
     await update.message.reply_text(reply)
 
+# Commands Menu Handler
+async def display_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    menu_message = """☕ *ChaiGPT Modes*
 
+🐕 *Doge Variants*
+• doge
+• doge cricket
+• doge bollywood
+• doge ingress
+• doge philosophy
+• doge corporate
+• doge shakespeare
+
+🎭 *Fun & Games*
+• /lovemeter
+• /roast
+• vibecheck
+
+📚 *Utility*
+• summarize
+• explain
+• /studytip
+
+Just mention a mode naturally or tag me! 😄"""
+    
+    # Using parse_mode="Markdown" to make headers bold and crisp
+    await update.message.reply_text(menu_message, parse_mode="Markdown")
 # Standard Command Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Hi! Send me your name or try commands like /roast /fortune /meme")
@@ -1078,6 +1105,8 @@ app.add_handler(CommandHandler("studytip", studytip))
 app.add_handler(CommandHandler("fortune", fortune))
 app.add_handler(CommandHandler("marathi", marathi))
 app.add_handler(CommandHandler("meme", meme))
+app.add_handler(CommandHandler("commands", display_menu))  # commands alias for menu
+app.add_handler(CommandHandler("menu", display_menu))      # menu alias for commands
 
 app.add_handler(ChatMemberHandler(welcome_group, ChatMemberHandler.MY_CHAT_MEMBER))
 
