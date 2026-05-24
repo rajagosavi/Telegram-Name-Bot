@@ -470,6 +470,10 @@ Your task is to summarize the live scraped webpage data provided below.
 1. Base your summary strictly and entirely on the text facts inside the [SCRAPED CONTENT] box below.
 2. Do NOT use historical pre-training weights or assume old movie/news facts. Trust the scraped text explicitly.
 3. Structure your final reply beautifully: use crisp, clear human-style bullet points breaking down titles, records, or key metrics. No synthetic assistant fluff.
+4. Output concise human-style bullet points and never exceed 10 bullet points total.
+5. Each bullet point should contain one important fact only.
+6. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
+7. No introductions, conclusions, greetings, opinions, or assistant commentary.
 
 [SCRAPED CONTENT]:
 {scraped_content}
