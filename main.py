@@ -42,7 +42,7 @@ GROUP_PROFILES = {
 # --- GLOBAL CONFIGS FOR API BUDGET SAFETY ---
 COOLDOWN_RULES = {
     "conversation": 15,       
-    "summary": 300,           
+    "summary": 30,           
     "cheap_chat": 180,
     "board_game": 30,
 }
