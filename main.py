@@ -221,7 +221,7 @@ def detect_group_vibe(text: str) -> str:
     return "balanced"
 
 
-# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE UTILITY ---
+# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE WITH INTENTIONAL PROTECTION ---
 async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
     # LAYER 1: SIMPLE FETCH (Fast, Cheap, Light)
     try:
@@ -231,17 +231,43 @@ async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
             }
             response = await client.get(url, headers=headers, follow_redirects=True)
-            if response.status_code == 200 and "cloudflare" not in response.text.lower():
+            
+            # Restored explicit CAPTCHA and Cloudflare parsing gates
+            response_lower = response.text.lower()
+            has_anti_bot = any(term in response_lower for term in ["cloudflare", "captcha", "hcaptcha", "recaptcha", "noscript"])
+            
+            if response.status_code == 200 and not has_anti_bot:
                 soup = BeautifulSoup(response.text, "html.parser")
                 for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
                     element.decompose()
                 clean_text = " ".join(soup.get_text(separator=" ").split())
-                if len(clean_text.strip()) > 200:
-                    return clean_text[:5000], "Layer 1: Standard Fetch"
+                if len(clean_text.strip()) > 600:  
+                    return clean_text[:6000], "Layer 1: Standard Fetch"
     except Exception as e:
-        print(f"[Scraper] Layer 1 failed: {e}")
+        print(f"[Scraper Warning] Layer 1 dropped: {e}")
 
-    # LAYER 2: SMART FALLBACK (OpenGraph Metadata)
+    # LAYER 2: BROWSER AUTOMATION (Escalated to handle heavy JS challenges or script protections)
+    try:
+        print(f"[Scraper Engine] Deploying Headless Chromium Tank for: {url}")
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720}
+            )
+            page = await context.new_page()
+            await page.goto(url, wait_until="domcontentloaded", timeout=18000)
+            
+            visible_text = await page.locator("body").inner_text()
+            clean_js_text = " ".join(visible_text.split())
+            await browser.close()
+            
+            if len(clean_js_text.strip()) > 400:
+                return clean_js_text[:6000], "Layer 2: Playwright Automation"
+    except Exception as e:
+        print(f"[Scraper Warning] Layer 2 browser block: {e}")
+
+    # LAYER 3: METADATA EXTRACTION (Last-resort parsing helper)
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
             headers = {"User-Agent": "Mozilla/5.0 (compatible; TelegramBot/1.0; +https://telegram.org/bots)"}
@@ -252,30 +278,12 @@ async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
                 og_desc = soup.find("meta", property="og:description")
                 title_str = og_title["content"] if og_title else ""
                 desc_str = og_desc["content"] if og_desc else ""
-                if title_str or desc_str:
-                    return f"Title: {title_str} | Preview Description: {desc_str}", "Layer 2: Metadata Fallback"
+                if len(desc_str.strip()) > 100:
+                    return f"Title: {title_str} | Explicit Summary Details: {desc_str}", "Layer 3: Metadata Fallback"
     except Exception as e:
-        print(f"[Scraper] Layer 2 failed: {e}")
+        print(f"[Scraper Warning] Layer 3 fallback dropped: {e}")
 
-    # LAYER 3: BROWSER AUTOMATION (The Headless Tank)
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1280, "height": 720}
-            )
-            page = await context.new_page()
-            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-            visible_text = await page.locator("body").inner_text()
-            clean_js_text = " ".join(visible_text.split())
-            await browser.close()
-            if len(clean_js_text.strip()) > 150:
-                return clean_js_text[:5000], "Layer 3: Playwright Automation"
-    except Exception as e:
-        print(f"[Scraper] Layer 3 failed: {e}")
-
-    # LAYER 4: ACCESS BLOCKED (Honesty lane fallback)
+    # LAYER 4: HONESTY MODE DEAD-STOP
     return "", "Layer 4"
 
 
@@ -430,34 +438,10 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         extracted_urls = re.findall(r"https?://\S+", incoming_text)
         if extracted_urls:
             target_url = extracted_urls[0]
-            status_message = await update.message.reply_text("☕ Accessing link to create concise summary, hang tight...")
+            status_message = await update.message.reply_text("☕ Accessing link via layered scraper engine, hang tight...")
             
             scraped_content, execution_layer = await smart_scrape_pipeline(target_url)
-
-            captcha_keywords = [
-                "verify you are human",
-                "captcha",
-                "security check",
-                "cloudflare",
-                "robot",
-                "access denied"
-            ]
-
-            if any(word in scraped_content.lower() for word in captcha_keywords):
-                reply_text = (
-                    "☕ This website is protected by anti-bot verification.\n\n"
-                    "I could only access the security page, not the actual article."
-                )
-
-                await status_message.edit_text(reply_text)
-
-                LAST_BOT_REPLIES[chat_id] = {
-                    "bot_last_text": reply_text,
-                    "task_type": task_type
-                }
-
-                return
-
+            
             if scraped_content:
                 prompt = f"""
 You are an advanced text summarizing engine running inside the ChaiGPT group chat ecosystem.
@@ -468,12 +452,11 @@ Your task is to summarize the live scraped webpage data provided below.
 
 [CRITICAL GROUNDING RULES]:
 1. Base your summary strictly and entirely on the text facts inside the [SCRAPED CONTENT] box below.
-2. Do NOT use historical pre-training weights or assume old movie/news facts. Trust the scraped text explicitly.
-3. Structure your final reply beautifully: use crisp, clear human-style bullet points breaking down titles, records, or key metrics. No synthetic assistant fluff.
-4. Output concise human-style bullet points and never exceed 10 bullet points total.
-5. Each bullet point should contain one important fact only.
-6. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
-7. No introductions, conclusions, greetings, opinions, or assistant commentary.
+2. Ensure you pull the full comprehensive text payload. If this is an award announcement or competition announcement list, extract and list ALL titles, categories, winners, and directors explicitly.
+3. Structure your final reply beautifully: use crisp, clear human-style bullet points breaking down categories cleanly. No synthetic assistant fluff.
+4. Output concise bullet points and Each bullet point should contain one important fact only.
+5. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
+6. No introductions, conclusions, greetings, opinions, or assistant commentary.
 
 [SCRAPED CONTENT]:
 {scraped_content}
@@ -561,7 +544,7 @@ The task type of that response was: {recent_context['task_type']}
         
 RULES:
 1. Reply briefly in the user's language first when recognizable. Always include an English equivalent in the same message.
-2. CONFRONTATION CHECK: If the user's message is confronting you or telling you that you messed up, look at [YOUR MEMORY LOG]. Acknowledge the error naturally like a real friend would. Never gaslight them.
+2. CONFRONTATION CHECK: If the user's message is confronting you or telling you that you messed up, look at [YOUR MEMORY LOG]. Acknowledge the error naturally like a real friend would. Never gashlight them.
 3. Stay context-aware, grounded, under 40 words.
 """
         reply_text = await ask_free_model(prompt)
@@ -636,5 +619,5 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.ChatTy
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.ChatType.PRIVATE, handle_message))
 
 if __name__ == "__main__":
-    print("🤖 Bot is running with a 4-Layer Scraper Core...")
+    print("🤖 Bot is running with an Upgraded 4-Layer Scraper Core...")
     app.run_polling()
