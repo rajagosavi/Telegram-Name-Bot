@@ -457,6 +457,7 @@ Your task is to summarize the live scraped webpage data provided below.
 4. Output concise bullet points and Each bullet point should contain one important fact only.
 5. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
 6. No introductions, conclusions, greetings, opinions, or assistant commentary.
+7. COMPREHENSIVENESS MANDATE: If this page contains an official list of award winners, competition brackets, or event results, do NOT summarize it down into a short paragraph or limit yourself to a generic 5-point list.
 
 [SCRAPED CONTENT]:
 {scraped_content}
