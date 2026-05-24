@@ -221,9 +221,25 @@ def detect_group_vibe(text: str) -> str:
     return "balanced"
 
 
-# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE WITH INTENTIONAL PROTECTION ---
-async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
-    # LAYER 1: SIMPLE FETCH (Fast, Cheap, Light)
+# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE WITH TELEGRAM INSTANT PREVIEW CACHE ---
+async def smart_scrape_pipeline(url: str, update: Update = None) -> tuple[str, str]:
+    # LAYER 1: TELEGRAM INLINE PREVIEW EXTRACTION (Instant & Unblockable)
+    try:
+        if update and update.message:
+            msg_obj = update.message
+            # Intercept pre-parsed Telegram data attachments if available
+            if hasattr(msg_obj, 'web_page') and msg_obj.web_page:
+                wp = msg_obj.web_page
+                title = wp.title if wp.title else ""
+                description = wp.description if wp.description else ""
+                
+                if len(description.strip()) > 300:
+                    tg_cache_content = f"Title: {title}\nContent Payload Data:\n{description}"
+                    return tg_cache_content[:6000], "Layer 1: Telegram WebPage Cache"
+    except Exception as telegram_cache_error:
+        print(f"[Scraper] Layer 1 attachment parsing skipped: {telegram_cache_error}")
+
+    # LAYER 2: SIMPLE FETCH WITH CLOUDFLARE/CAPTCHA DETECTION
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             headers = {
@@ -232,9 +248,8 @@ async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
             }
             response = await client.get(url, headers=headers, follow_redirects=True)
             
-            # Restored explicit CAPTCHA and Cloudflare parsing gates
             response_lower = response.text.lower()
-            has_anti_bot = any(term in response_lower for term in ["cloudflare", "captcha", "hcaptcha", "recaptcha", "noscript"])
+            has_anti_bot = any(term in response_lower for term in ["cloudflare", "captcha", "hcaptcha", "recaptcha", "noscript", "security block"])
             
             if response.status_code == 200 and not has_anti_bot:
                 soup = BeautifulSoup(response.text, "html.parser")
@@ -242,11 +257,11 @@ async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
                     element.decompose()
                 clean_text = " ".join(soup.get_text(separator=" ").split())
                 if len(clean_text.strip()) > 600:  
-                    return clean_text[:6000], "Layer 1: Standard Fetch"
+                    return clean_text[:6000], "Layer 2: Standard Fetch"
     except Exception as e:
-        print(f"[Scraper Warning] Layer 1 dropped: {e}")
+        print(f"[Scraper Warning] Layer 2 dropped: {e}")
 
-    # LAYER 2: BROWSER AUTOMATION (Escalated to handle heavy JS challenges or script protections)
+    # LAYER 3: BROWSER AUTOMATION (Headless Chromium Engine)
     try:
         print(f"[Scraper Engine] Deploying Headless Chromium Tank for: {url}")
         async with async_playwright() as p:
@@ -263,27 +278,11 @@ async def smart_scrape_pipeline(url: str) -> tuple[str, str]:
             await browser.close()
             
             if len(clean_js_text.strip()) > 400:
-                return clean_js_text[:6000], "Layer 2: Playwright Automation"
+                return clean_js_text[:6000], "Layer 3: Playwright Automation"
     except Exception as e:
-        print(f"[Scraper Warning] Layer 2 browser block: {e}")
+        print(f"[Scraper Warning] Layer 3 browser block: {e}")
 
-    # LAYER 3: METADATA EXTRACTION (Last-resort parsing helper)
-    try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
-            headers = {"User-Agent": "Mozilla/5.0 (compatible; TelegramBot/1.0; +https://telegram.org/bots)"}
-            response = await client.get(url, headers=headers, follow_redirects=True)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                og_title = soup.find("meta", property="og:title")
-                og_desc = soup.find("meta", property="og:description")
-                title_str = og_title["content"] if og_title else ""
-                desc_str = og_desc["content"] if og_desc else ""
-                if len(desc_str.strip()) > 100:
-                    return f"Title: {title_str} | Explicit Summary Details: {desc_str}", "Layer 3: Metadata Fallback"
-    except Exception as e:
-        print(f"[Scraper Warning] Layer 3 fallback dropped: {e}")
-
-    # LAYER 4: HONESTY MODE DEAD-STOP
+    # LAYER 4: ACCESS BLOCKED
     return "", "Layer 4"
 
 
@@ -440,24 +439,24 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target_url = extracted_urls[0]
             status_message = await update.message.reply_text("☕ Accessing link via layered scraper engine, hang tight...")
             
-            scraped_content, execution_layer = await smart_scrape_pipeline(target_url)
+            scraped_content, execution_layer = await smart_scrape_pipeline(target_url, update=update)
             
-            if scraped_content:
+            if scraped_content and execution_layer != "Layer 4":
                 prompt = f"""
-You are an advanced text summarizing engine running inside the ChaiGPT group chat ecosystem.
-Your task is to summarize the live scraped webpage data provided below.
+You are an advanced data extraction and comprehensive summarizing engine running inside the ChaiGPT group chat ecosystem.
+Your task is to analyze the live scraped webpage data provided below and extract an un-truncated, full breakdown.
 
 [PIPELINE PROCESSING AUDIT]:
 - Scraped via: {execution_layer}
 
-[CRITICAL GROUNDING RULES]:
-1. Base your summary strictly and entirely on the text facts inside the [SCRAPED CONTENT] box below.
-2. Ensure you pull the full comprehensive text payload. If this is an award announcement or competition announcement list, extract and list ALL titles, categories, winners, and directors explicitly.
-3. Structure your final reply beautifully: use crisp, clear human-style bullet points breaking down categories cleanly. No synthetic assistant fluff.
-4. Output concise bullet points and Each bullet point should contain one important fact only.
+[CRITICAL INSTRUCTIONS]:
+1. Base your response strictly and entirely on the text facts inside the [SCRAPED CONTENT] box below.
+2. COMPREHENSIVENESS MANDATE: If this page contains an official list of award winners, competition brackets, or event results, do NOT summarize it down into a short paragraph or limit yourself to a generic 5-point list. 
+3. You must explicitly extract and list ALL major categories, film titles, winning directors, and actors mentioned in the text. Do not omit rows or leave out sections to save space.
+4. Structure your final reply using clear section headers (e.g., Main Competition, Un Certain Regard, Parallel Awards)
+4. Output concise bullet points and Each bullet point should contain one important fact only
 5. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
-6. No introductions, conclusions, greetings, opinions, or assistant commentary.
-7. COMPREHENSIVENESS MANDATE: If this page contains an official list of award winners, competition brackets, or event results, do NOT summarize it down into a short paragraph or limit yourself to a generic 5-point list.
+6. No introductions, conclusions, greetings, opinions, or assistant commentary. and use crisp bullet points for every single award. No synthetic assistant fluff.
 
 [SCRAPED CONTENT]:
 {scraped_content}
@@ -545,7 +544,7 @@ The task type of that response was: {recent_context['task_type']}
         
 RULES:
 1. Reply briefly in the user's language first when recognizable. Always include an English equivalent in the same message.
-2. CONFRONTATION CHECK: If the user's message is confronting you or telling you that you messed up, look at [YOUR MEMORY LOG]. Acknowledge the error naturally like a real friend would. Never gashlight them.
+2. CONFRONTATION CHECK: If the user's message is confronting you or telling you that you messed up, look at [YOUR MEMORY LOG]. Acknowledge the error naturally like a real friend would. Never gaslight them.
 3. Stay context-aware, grounded, under 40 words.
 """
         reply_text = await ask_free_model(prompt)
