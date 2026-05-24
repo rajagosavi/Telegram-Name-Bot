@@ -221,25 +221,27 @@ def detect_group_vibe(text: str) -> str:
     return "balanced"
 
 
-# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE WITH TELEGRAM INSTANT PREVIEW CACHE ---
+# --- THE 4-LAYER RESILIENT SCRAPER PIPELINE ---
 async def smart_scrape_pipeline(url: str, update: Update = None) -> tuple[str, str]:
-    # LAYER 1: TELEGRAM INLINE PREVIEW EXTRACTION (Instant & Unblockable)
+    # LAYER 1: TELEGRAM SERVER INLINE PREVIEW CACHE (Instant & Unblockable)
     try:
         if update and update.message:
             msg_obj = update.message
-            # Intercept pre-parsed Telegram data attachments if available
+            
+            # Extract Telegram web page object directly if pre-cached by their server engine
             if hasattr(msg_obj, 'web_page') and msg_obj.web_page:
                 wp = msg_obj.web_page
                 title = wp.title if wp.title else ""
                 description = wp.description if wp.description else ""
                 
-                if len(description.strip()) > 300:
-                    tg_cache_content = f"Title: {title}\nContent Payload Data:\n{description}"
+                # If Telegram has populated a rich text preview summary block
+                if len(description.strip()) > 100:
+                    tg_cache_content = f"Title: {title}\nContent Payload:\n{description}"
                     return tg_cache_content[:6000], "Layer 1: Telegram WebPage Cache"
     except Exception as telegram_cache_error:
-        print(f"[Scraper] Layer 1 attachment parsing skipped: {telegram_cache_error}")
+        print(f"[Scraper] Layer 1 web_page extraction skipped: {telegram_cache_error}")
 
-    # LAYER 2: SIMPLE FETCH WITH CLOUDFLARE/CAPTCHA DETECTION
+    # LAYER 2: SIMPLE FETCH WITH CLOUDFLARE/CAPTCHA PROTECTION
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             headers = {
@@ -261,7 +263,7 @@ async def smart_scrape_pipeline(url: str, update: Update = None) -> tuple[str, s
     except Exception as e:
         print(f"[Scraper Warning] Layer 2 dropped: {e}")
 
-    # LAYER 3: BROWSER AUTOMATION (Headless Chromium Engine)
+    # LAYER 3: BROWSER AUTOMATION (Headless Chromium Tank)
     try:
         print(f"[Scraper Engine] Deploying Headless Chromium Tank for: {url}")
         async with async_playwright() as p:
@@ -282,7 +284,7 @@ async def smart_scrape_pipeline(url: str, update: Update = None) -> tuple[str, s
     except Exception as e:
         print(f"[Scraper Warning] Layer 3 browser block: {e}")
 
-    # LAYER 4: ACCESS BLOCKED
+    # LAYER 4: HONESTY MODE DEAD-STOP
     return "", "Layer 4"
 
 
@@ -429,7 +431,7 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # =========================================================================
-    # PATH B: STANDARD ROUTED SUMMONS
+    # PATH B: STANDARD ROUTED SUMMONS (Guarded with Explicit Returns)
     # =========================================================================
     reply_text = ""
 
@@ -439,6 +441,7 @@ async def chai_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target_url = extracted_urls[0]
             status_message = await update.message.reply_text("☕ Accessing link via layered scraper engine, hang tight...")
             
+            # Pass full update context payload to intercept pre-rendered cache data
             scraped_content, execution_layer = await smart_scrape_pipeline(target_url, update=update)
             
             if scraped_content and execution_layer != "Layer 4":
@@ -452,11 +455,9 @@ Your task is to analyze the live scraped webpage data provided below and extract
 [CRITICAL INSTRUCTIONS]:
 1. Base your response strictly and entirely on the text facts inside the [SCRAPED CONTENT] box below.
 2. COMPREHENSIVENESS MANDATE: If this page contains an official list of award winners, competition brackets, or event results, do NOT summarize it down into a short paragraph or limit yourself to a generic 5-point list. 
-3. You must explicitly extract and list ALL major categories, film titles, winning directors, and actors mentioned in the text. Do not omit rows or leave out sections to save space.
-4. Structure your final reply using clear section headers (e.g., Main Competition, Un Certain Regard, Parallel Awards)
-4. Output concise bullet points and Each bullet point should contain one important fact only
-5. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
-6. No introductions, conclusions, greetings, opinions, or assistant commentary. and use crisp bullet points for every single award. No synthetic assistant fluff.
+3. Output concise bullet points and Each bullet point should contain one important fact only..
+4. Prioritize winners, names, events, records, announcements, numbers, and outcomes.
+5. No introductions, conclusions, greetings, opinions, or assistant commentary.
 
 [SCRAPED CONTENT]:
 {scraped_content}
